@@ -4,26 +4,50 @@ import json
 
 app = FastAPI()
 
-# CORS middleware setup to allow communication between different origins
+# Allow CORS for the front-end to connect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change this to your front-end domain for security in production
+    allow_origins=["*"],  # Allow all origins for now, restrict to your domain in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# WebSocket connection endpoint
+# Store connected clients (if needed for broadcasting)
+clients = []
+
+# WebSocket endpoint to receive and handle data
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    clients.append(websocket)
+    
     try:
         while True:
+            # Receive the JSON-formatted string from the client (Android app)
             data = await websocket.receive_text()
-            # You can broadcast this to multiple connected clients or just send it back
-            await websocket.send_text(data)
+            
+            # Parse the JSON data
+            parsed_data = json.loads(data)
+            name = parsed_data['name']
+            uniqueID = parsed_data['uniqueID']
+            floor = parsed_data['floor']
+            latitude = parsed_data['latitude']
+            longitude = parsed_data['longitude']
+            
+            # Send back the same data to update the front-end (e.g., the moving dot on the map)
+            response_data = {
+                "name": name,
+                "uniqueID": uniqueID,
+                "floor": floor,
+                "latitude": latitude,
+                "longitude": longitude
+            }
+            await websocket.send_text(json.dumps(response_data))
+
     except WebSocketDisconnect:
-        print("Client disconnected")
+        clients.remove(websocket)
+        print(f"Client {websocket} disconnected")
 
 if __name__ == "__main__":
     import uvicorn
