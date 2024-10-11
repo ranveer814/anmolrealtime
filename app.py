@@ -1,49 +1,81 @@
-from flask import Flask, request, jsonify, send_file
-import pandas as pd
-import os
+from fastapi import FastAPI, WebSocket
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+import json
 
-app = Flask(__name__)
+app = FastAPI()
 
-# Define the CSV file path
-csv_file = 'data.csv'
+# To allow frontend to access backend via browser
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Check if the CSV file exists, if not create one with headers
-if not os.path.exists(csv_file):
-    df = pd.DataFrame(columns=["Unique ID", "Name", "Longitude", "Latitude", "Floor"])
-    df.to_csv(csv_file, index=False)
+# WebSocket route for real-time data
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    while True:
+        data = await websocket.receive_text()
+        data_json = json.loads(data)
+        unique_id = data_json["uniqueID"]
+        latitude = data_json["latitude"]
+        longitude = data_json["longitude"]
+        floor = data_json["floor"]
 
-@app.route('/submit-data', methods=['POST'])
-def submit_data():
-    try:
-        # Get the incoming JSON data from the Android app
-        data = request.json
-        
-        # Extract the details
-        unique_id = data.get("id")
-        name = data.get("name")
-        longitude = data.get("longitude")
-        latitude = data.get("latitude")
-        floor = data.get("floor")
-        
-        # Append the data to the CSV file
-        new_data = pd.DataFrame([[unique_id, name, longitude, latitude, floor]], 
-                                columns=["Unique ID", "Name", "Longitude", "Latitude", "Floor"])
-        new_data.to_csv(csv_file, mode='a', header=False, index=False)
-        
-        # Return a success response
-        return jsonify({"message": "Data received successfully"}), 200
+        # Send the latest location data back to the client
+        await websocket.send_text(json.dumps(data_json))
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+# Route to serve the index.html directly
+@app.get("/", response_class=HTMLResponse)
+async def get():
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Real-Time Tracking</title>
+        <style>
+            #map { height: 100vh; width: 100%; }
+        </style>
+        <script>
+            var ws = new WebSocket("wss://your-app.onrender.com/ws");
+            ws.onmessage = function(event) {
+                var data = JSON.parse(event.data);
+                var latitude = data.latitude;
+                var longitude = data.longitude;
+                console.log("Latitude: " + latitude + ", Longitude: " + longitude);
+                // Update the dot position on the map
+                updateDotPosition(latitude, longitude);
+            };
 
-# Route to serve the CSV file
-@app.route('/get-csv', methods=['GET'])
-def get_csv():
-    # Check if the file exists before serving
-    if os.path.exists(csv_file):
-        return send_file(csv_file, as_attachment=True, attachment_filename='data.csv')
-    else:
-        return jsonify({"error": "CSV file not found"}), 404
+            function updateDotPosition(latitude, longitude) {
+                var dot = document.getElementById("dot");
+                // Convert latitude and longitude to X, Y coordinates based on your map's dimensions
+                // Adjust the values based on your map's coordinates
+                var x = (longitude - 75.8465) * 1000;  // Example conversion factor
+                var y = (30.9015 - latitude) * 1000;   // Example conversion factor
+                dot.style.left = x + "px";
+                dot.style.top = y + "px";
+            }
+        </script>
+    </head>
+    <body>
+        <div id="map">
+            <img src="/map" alt="Map" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
+            <div id="dot" style="position: absolute; width: 10px; height: 10px; background-color: blue; border-radius: 50%;"></div>
+        </div>
+    </body>
+    </html>
+    """
+    return html_content
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# Serve the image directly from the root
+@app.get("/map")
+async def get_map_image():
+    return FileResponse("map_anmol.jpg")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
