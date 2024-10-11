@@ -3,76 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Tracking</title>
+    <title>Real-time Tracking</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
         #map {
-            height: 100vh;
+            height: 600px;
             width: 100%;
         }
-
-        /* CSS to highlight the room area */
-        .highlight-box {
-            border: 2px solid red;
-            position: absolute;
-        }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
 </head>
 <body>
+    <h1>Real-time Tracking on Map</h1>
     <div id="map"></div>
-
+    
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
-        // Coordinates of the room's corners
-        const roomCorners = [
-            [30.9015736, 75.84650898], // Top right
-            [30.9015735, 75.8464923],  // Top left
-            [30.9015661, 75.8464923],  // Bottom left
-            [30.9015666, 75.84650898]  // Bottom right
-        ];
+        // Initialize the map
+        const map = L.map('map').setView([0, 0], 15); // Set initial coordinates and zoom level
 
-        // Initialize the map and set it to the center of the room
-        const map = L.map('map').setView([30.901570, 75.846500], 20); // Adjust zoom for better visibility
-
-        // Load and display tile layer on the map (OpenStreetMap)
+        // Add OpenStreetMap layer
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
-        // Highlight the room as a polygon
-        const roomPolygon = L.polygon(roomCorners, { color: 'red' }).addTo(map);
-        roomPolygon.bindPopup('Tracked Room');
+        // Define a marker for tracking
+        const trackingMarker = L.marker([0, 0]).addTo(map);
 
-        // Create a marker for the moving dot (real-time tracking)
-        const trackingMarker = L.circleMarker([30.901570, 75.846500], {
-            radius: 8,
-            fillColor: "#007bff",
-            color: "#007bff",
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        }).addTo(map);
-
-        // Connect to WebSocket
+        // WebSocket connection
         const socket = new WebSocket("wss://anmolrealtime.onrender.com/ws");
 
-        // Handle WebSocket events
-        socket.onopen = function () {
+        socket.onopen = function() {
             console.log("WebSocket connection established");
         };
 
-        socket.onmessage = function (event) {
+        socket.onmessage = function(event) {
             const data = JSON.parse(event.data);
 
-            // Update the marker position with the new latitude and longitude received
-            const newLatLng = new L.LatLng(data.latitude, data.longitude);
+            const name = data.name;
+            const uniqueID = data.uniqueID;
+            const floor = data.floor;
+            const latitude = data.latitude;
+            const longitude = data.longitude;
+
+            // Update the marker position with the new latitude and longitude
+            const newLatLng = new L.LatLng(latitude, longitude);
             trackingMarker.setLatLng(newLatLng);
 
-            // Keep the map centered around the new location
+            // Center map around the new location
             map.setView(newLatLng, map.getZoom());
         };
 
-        socket.onclose = function () {
+        socket.onclose = function() {
             console.log("WebSocket connection closed");
         };
     </script>
