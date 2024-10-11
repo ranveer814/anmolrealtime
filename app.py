@@ -74,7 +74,7 @@ async def get():
 # Serve the image directly from the root
 @app.get("/map")
 async def get_map_image():
-    return FileResponse("map_anmol.jpg")
+    return FileResponse("mapanmol.jpg")
 
 if __name__ == "__main__":
     import uvicorn
