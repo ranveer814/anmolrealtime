@@ -40,7 +40,7 @@ async def get():
             #map { height: 100vh; width: 100%; }
         </style>
         <script>
-            var ws = new WebSocket("wss://your-app.onrender.com/ws");
+            var ws = new WebSocket("wss://anmolrealtime.onrender.com/ws");
             ws.onmessage = function(event) {
                 var data = JSON.parse(event.data);
                 var latitude = data.latitude;
